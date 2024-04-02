@@ -4,9 +4,10 @@
  *
  * Created on 9 de Setembro de 2013, 14:51
  *
- * Alterada em 24/01/2017 para incluir leituras repetitivas de um �nico canal e media aritmetica
+ * Alterada em 24/01/2017 para incluir leituras repetitivas de um unico canal e media aritmetica
  * Alterado em julho/2017: Incluso tratamento de ruido em cabos longos com Pt100 (ruido em 60Hz).
  * Alterado em Setembro/2019: Incluso salvar os coeficientes de temperatura (Alpha, b e k ) em três posições diferentes de memória
+ * Alterado em 2020: Limitacao de escrita no buffer de entrada da UART - travamento do uC
  *
  */
 
@@ -414,17 +415,20 @@ void __interrupt ()  interruption (void)
     char uByte;
     while (RCIF) {
         uByte   = RCREG;
-        serial[recebidos] = uByte;
-        cSum    += uByte;
-        recebidos++;
+	if(recebidos < 40)
++        {
++            serial[recebidos] = uByte;
++            cSum    += uByte;
++            recebidos++;
++        }
         TMR0    = 0x68;
-        TMR0IF  = 0;
-        TMR0IE  = 1;
+        TMR0IF  = 0;	//T0IF  = 0;
+        TMR0IE  = 1;	//T0IE  = 1;
     }
 
-    if(TMR0IF){
+    if(TMR0IF){  //if(T0IF){	
         DE = 1;
-        TMR0IE = 0;
+        TMR0IE = 0;  //T0IE = 0;
         if (!cSum)
         {
             if (serial[BSMP_DEST] == idPlaca)
@@ -436,7 +440,7 @@ void __interrupt ()  interruption (void)
         recebidos = 0;
         cSum      = 0;
         DE        = 0;
-        TMR0IF    = 0;
+        TMR0IF    = 0;  //T0IF    = 0;
     }
     PIR1 = 0;
 }
@@ -801,12 +805,14 @@ uint16_t ad (void)
     asm("NOP");
     adsCNVST    = 0;
     SSPBUF      = 0;
-    aux         = SSPBUF;
+    
     while (!BF);
+    aux         = SSPBUF;
     _AD0        = SSPBUF;
     SSPBUF      = 0;
-    aux         = SSPBUF;
+	
     while (!BF);
+    aux         = SSPBUF;
     _AD1        = SSPBUF;
     _AD         = (_AD0 << 8) + _AD1;
     return _AD;
